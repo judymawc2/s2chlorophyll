@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S2 Science Lab: Chlorophyll Investigation</title>
+    <!-- Tailwind CSS for modern responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .leaf-part { transition: fill 0.3s ease; cursor: pointer; }
+        .leaf-part:hover { opacity: 0.8; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800 flex flex-col justify-between">
+
+    <!-- Header -->
+    <header class="bg-emerald-600 text-white py-4 px-6 shadow-md">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-wide">🍃 Photosynthesis Investigation Wizard</h1>
+            <span class="text-sm bg-emerald-700 px-3 py-1 rounded-full" id="progress-text">Question 1 of 11</span>
+        </div>
+    </header>
+
+    <!-- Progress Bar -->
+    <div class="w-full bg-slate-200 h-2">
+        <div id="progress-bar" class="bg-emerald-400 h-2 transition-all duration-500" style="width: 9.09%"></div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="max-w-4xl w-full mx-auto p-6 flex-grow flex flex-col justify-center">
+        <div id="app-card" class="bg-white rounded-2xl shadow-xl p-8 transition-all duration-300">
+            <!-- Content will be dynamically inserted here by JavaScript -->
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 text-xs text-slate-400 bg-slate-100 border-t border-slate-200">
+        S2 Integrated Science • Interactive Lab Prep Webapp
+    </footer>
+
+    <script>
+        // Global App State
+        let currentStep = 0;
+        let selectedColor = null; 
+        let paintedLeaf = { outer: '#e2e8f0', inner: '#e2e8f0' }; 
+        let userOrder = [];
+        let textInputAttempts = 0; 
+        let validControlVariables = []; 
+        let validPrecautions = []; 
+
+        const quizData = [
+            {
+                type: "mcq",
+                question: "How do we test for the presence of starch in a leaf?",
+                options: [
+                    { text: "Add Benedict's solution; it turns from blue to brick-red.", correct: false, feedback: "Incorrect. Benedict's solution is used to test for reducing sugars like glucose, not starch!" },
+                    { text: "Add Iodine solution; it turns from brown to blue-black.", correct: true, feedback: "Excellent! Iodine solution is the standard test for starch, changing specifically to blue-black." },
+                    { text: "Add Iodine solution; it turns from clear to bright purple.", correct: false, feedback: "Close, but watch your colors! Iodine is originally brown/yellow-brown, and it turns a distinct blue-black when starch is present." }
+                ]
+            },
+            {
+                type: "info-card",
+                question: "Key Vocabulary: What is a Variegated Leaf?",
+                htmlContent: `
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-slate-700 space-y-4">
+                        <p class="text-lg font-medium">To find out if chlorophyll is needed for photosynthesis, scientists cannot use a normal, fully green leaf. Instead, they use a special leaf called a <b class="text-emerald-700">variegated leaf</b>.</p>
+                        <p class="text-sm">🧬 <b>Definition:</b> A leaf that has distinct green parts (which contain chlorophyll) and white or yellow parts (which completely lack chlorophyll). This creates a perfect side-by-side comparison for a fair test!</p>
+                    </div>
+                `
+            },
+            {
+                type: "text-input",
+                question: "Based on the definition you just read, what is the two-word term for a leaf that contains both green and non-green regions?",
+                placeholder: "Type the two-word phrase here...",
+                exactMatchOnly: true,
+                acceptedAnswers: ["variegated leaf", "variegated leaves"],
+                scaffoldChoices: ["Green leaf", "Variegated leaf", "Bleached leaf", "Compound leaf"]
+            },
+            {
+                type: "text-input",
+                question: "When glucose is produced during photosynthesis, the plant quickly converts the excess into an insoluble carbohydrate for temporary storage. What is the name of this storage substance?",
+                placeholder: "Type your answer here...",
+                exactMatchOnly: true,
+                acceptedAnswers: ["starch"],
+                scaffoldChoices: ["Glucose", "Starch", "Protein", "Cellulose"]
+            },
+            {
+                type: "text-input",
+                question: "What is the Independent Variable (the factor you deliberately change or compare across different areas) in this experiment?",
+                placeholder: "Type the variable here...",
+                exactMatchOnly: false,
+                acceptedAnswers: ["chlorophyll", "presence of chlorophyll", "amount of chlorophyll"],
+                scaffoldChoices: ["Chlorophyll", "Light intensity", "Starch presence", "Water amount"],
+                guidance: `
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-slate-700 text-sm space-y-2 mt-2">
+                        <p class="font-bold text-amber-800">💡 Let's review Independent Variables:</p>
+                        <p>The <b>Independent Variable</b> is the thing <u>YOU change</u> or make different on purpose. Think of it as the <i>cause</i>.</p>
+                        <p>🛒 <b>Example:</b> If you test how different amounts of sugar affect how sweet a drink is, the <i>amount of sugar</i> is the independent variable because you decide to change it.</p>
+                        <p>👉 <i>In this experiment, what is naturally different between the inner zone and the outer edge of our variegated leaf?</i></p>
+                    </div>
+                `
+            },
+            {
+                type: "text-input",
+                question: "What is the Dependent Variable (the factor you measure or observe as your dynamic result) in this experiment?",
+                placeholder: "Type the variable here...",
+                exactMatchOnly: false,
+                acceptedAnswers: ["starch", "presence of starch", "amount of starch", "iodine color change", "iodine test result"],
+                scaffoldChoices: ["Starch presence", "Chlorophyll presence", "Leaf size", "Carbon dioxide"],
+                guidance: `
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-slate-700 text-sm space-y-2 mt-2">
+                        <p class="font-bold text-amber-800">💡 Let's review Dependent Variables:</p>
+                        <p>The <b>Dependent Variable</b> is the thing you <u>measure or observe</u> to get your results. It *depends* on the changes you made. Think of it as the <i>effect</i>.</p>
+                        <p>🛒 <b>Example:</b> In the sweet drink test, how <i>sweet the drink tastes</i> is your result. That outcome is your dependent variable.</p>
+                        <p>👉 <i>In this experiment, what substance are we checking for at the end using the iodine solution to see if photosynthesis worked?</i></p>
+                    </div>
+                `
+            },
+            {
+                type: "control-variables-tracker",
+                question: "To ensure a fair test, we must keep other environmental factors constant. Name THREE distinct controlled variables for this experiment, entering them one by one.",
+                placeholder: "Type one constant factor here and click add...",
+                acceptedPool: [
+                    { keywords: ["light", "sunlight", "brightness"], standardName: "Light availability" },
+                    { keywords: ["carbon dioxide", "co2", "co 2", "air"], standardName: "Carbon Dioxide level" },
+                    { keywords: ["water", "moisture", "watering"], standardName: "Water volume" },
+                    { keywords: ["temperature", "warmth", "room temperature", "heat"], standardName: "Temperature" },
+                    { keywords: ["soil", "potting mix", "fertilizer"], standardName: "Soil conditions" }
+                ]
+            },
+            {
+                type: "mcq",
+                question: "Before starting the investigation, what must we do to the plant to guarantee a fair test?",
+                options: [
+                    { text: "Water it excessively and leave it in the bright sun for 48 hours.", correct: false, feedback: "If it sits in the sun, it will create *more* starch, which defeats the purpose of starting fresh!" },
+                    { text: "Destarch the plant by placing it in total darkness for at least 48 hours.", correct: true, feedback: "Perfect! Placing the plant in the dark forces it to convert all stored starch back into glucose for respiration, ensuring we start with a starch-free leaf." }
+                ]
+            },
+            {
+                type: "ordering",
+                question: "Arrange the leaf processing steps into the correct scientific order:",
+                items: [
+                    { id: "A", text: "Boil the leaf in water for 2 minutes (destroys cell membranes)." },
+                    { id: "B", text: "Put the leaf in hot alcohol using a water bath (removes chlorophyll)." },
+                    { id: "C", text: "Wash the leaf in hot water (removes alcohol and softens the leaf)." },
+                    { id: "D", text: "Add iodine solution to the leaf spread out on a white tile (tests for starch)." }
+                ],
+                correctOrder: ["A", "B", "C", "D"],
+                feedback: "Remember the logical sequence: First break down the cell boundaries with boiling water, then strip the green pigment with alcohol, soften it up after its chemical bath, and finally apply the indicator solution."
+            },
+            {
+                type: "interactive-leaf",
+                question: "Predict the results! Look at the 'Before' reference layout, choose a color tool, and paint your expected 'After Iodine Test' results on the interactive gray canvas.",
+                feedback: "The green parts had chlorophyll and could photosynthesize to create starch. The white parts lacked chlorophyll entirely. Color them accurately based on the iodine reaction!"
+            },
+            {
+                type: "precautions-tracker",
+                question: "What safety precautions must we follow during this lab? Name TWO important safety measures, entering them one by one.",
+                placeholder: "Type one safety precaution here (e.g., about alcohol, fire, or safety gear)...",
+                acceptedPool: [
+                    { keywords: ["alcohol", "ethanol", "flammable", "fire", "water bath", "bunsen", "naked flame", "burn"], standardName: "Do not heat alcohol directly over a flame / Use a hot water bath" },
+                    { keywords: ["goggle", "goggles", "eye", "eyes", "glasses"], standardName: "Wear safety goggles to protect eyes" },
+                    { keywords: ["tongs", "forceps", "hot water", "boiling water", "burns"], standardName: "Use tongs when handling the hot leaf or hot beakers" },
+                    { keywords: ["coat", "apron", "tie hair"], standardName: "Wear a lab coat and tie back long hair" }
+                ]
+            }
+        ];
+
+        function renderStep() {
+            const card = document.getElementById('app-card');
+            const data = quizData[currentStep];
+            
+            document.getElementById('progress-text').innerText = `Question ${currentStep + 1} of ${quizData.length}`;
+            document.getElementById('progress-bar').style.width = `${((currentStep + 1) / quizData.length) * 100}%`;
+
+            let html = `<h2 class="text-2xl font-bold text-slate-800 mb-6">${data.question}</h2>`;
+            html += `<div id="feedback-box" class="hidden mb-6 p-4 rounded-xl font-medium text-sm transition-all duration-300"></div>`;
+
+            if (data.type === 'info-card') {
+                html += data.htmlContent;
+                html += `
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="appendNextButton();" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">
+                            I understand the term ➔
+                        </button>
+                    </div>
+                `;
+            }
+
+            else if (data.type === 'mcq') {
+                html += `<div class="space-y-4">`;
+                data.options.forEach((opt, idx) => {
+                    html += `
+                        <button onclick="checkMCQ(${idx})" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all font-medium flex items-start gap-3 option-btn">
+                            <span class="inline-flex items-center justify-center bg-slate-200 text-slate-700 font-bold rounded-full h-6 w-6 shrink-0 text-sm">${String.fromCharCode(65 + idx)}</span>
+                            <span>${opt.text}</span>
+                        </button>
+                    `;
+                });
+                html += `</div>`;
+            } 
+            
+            else if (data.type === 'text-input') {
+                html += `
+                    <div class="space-y-4" id="text-input-container">
+                        <input type="text" id="user-text-input" placeholder="${data.placeholder}" 
+                               class="w-full p-4 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 font-medium text-lg shadow-inner">
+                        <button onclick="checkTextInput()" id="submit-text-btn"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">
+                            Submit Answer
+                        </button>
+                        <div id="guidance-box" class="hidden"></div>
+                    </div>
+                `;
+            }
+            
+            else if (data.type === 'control-variables-tracker') {
+                html += `
+                    <div class="space-y-4">
+                        <div class="bg-slate-100 p-4 rounded-xl border border-slate-200">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Verified Parameters Box (${validControlVariables.length}/3):</span>
+                            <div class="flex flex-wrap gap-2" id="control-badge-container">
+                                ${validControlVariables.length === 0 ? '<span class="text-sm text-slate-400 italic">No variables added yet...</span>' : ''}
+                                ${validControlVariables.map(v => `<span class="bg-emerald-500 text-white font-semibold text-sm px-3 py-1 rounded-full shadow-sm">✓ ${v}</span>`).join('')}
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2" id="control-input-wrapper">
+                            <input type="text" id="control-variable-input" placeholder="${data.placeholder}" 
+                                   class="flex-grow p-4 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 font-medium text-md shadow-inner">
+                            <button onclick="evaluateSingleControlVariable()" id="add-control-btn"
+                                    class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-6 rounded-xl transition-all shadow-md shrink-0">
+                                Add Factor
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            else if (data.type === 'precautions-tracker') {
+                html += `
+                    <div class="space-y-4">
+                        <div class="bg-slate-100 p-4 rounded-xl border border-slate-200">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Logged Safety Steps (${validPrecautions.length}/2):</span>
+                            <div class="flex flex-col gap-2" id="precautions-badge-container">
+                                ${validPrecautions.length === 0 ? '<span class="text-sm text-slate-400 italic">No precautions logged yet...</span>' : ''}
+                                ${validPrecautions.map(p => `<span class="text-emerald-700 font-semibold text-sm bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg block">🛡️ ${p}</span>`).join('')}
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-2" id="precaution-input-wrapper">
+                            <input type="text" id="precaution-variable-input" placeholder="${data.placeholder}" 
+                                   class="flex-grow p-4 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 font-medium text-md shadow-inner">
+                            <button onclick="evaluateSinglePrecaution()" id="add-precaution-btn"
+                                    class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-6 py-4 rounded-xl transition-all shadow-md shrink-0">
+                                Log Precaution
+                            </button>
+                        </div>
+                        <div id="extra-precautions-box" class="hidden mt-6"></div>
+                    </div>
+                `;
+            }
+
+            else if (data.type === 'ordering') {
+                html += `<p class="text-sm text-slate-500 mb-4"><b>Note:</b> The steps are scrambled! Click them in the correct scientific order from first to last:</p>`;
+                html += `<div class="space-y-3" id="ordering-container">`;
+                
+                const scrambledItems = [...data.items].sort(() => Math.random() - 0.5);
+                scrambledItems.forEach((item) => {
+                    html += `
+                        <button onclick="selectOrderElement('${item.id}', this)" class="w-full text-left p-4 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 transition-all font-medium flex justify-between items-center order-btn">
+                            <span>${item.text}</span>
+                            <span class="order-badge bg-slate-100 text-slate-400 font-bold px-3 py-1 rounded-full text-xs">Unselected</span>
+                        </button>
+                    `;
+                });
+                html += `</div>`;
+                html += `<button onclick="checkOrdering()" class="mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">Verify Order Sequence</button>`;
+                userOrder = [];
+            } 
+            
+            else if (data.type === 'interactive-leaf') {
+                html += `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-slate-100 p-6 rounded-xl mb-6">
+                        <div class="flex flex-col items-center border-b md:border-b-0 md:border-r border-slate-300 pb-6 md:pb-0 md:pr-6">
+                            <span class="bg-slate-700 text-white font-bold text-xs px-3 py-1 rounded-full mb-2">1. Leaf Color Before Experiment</span>
+                            <div class="w-48 h-48">
+                                <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-sm">
+                                    <path d="M 100,20 C 160,50 190,110 160,160 C 130,190 100,180 100,180 C 100,180 70,190 40,160 C 10,110 40,50 100,20 Z" fill="#fffbeb" stroke="#94a3b8" stroke-width="2"/>
+                                    <path d="M 100,50 C 135,70 145,110 130,140 C 115,160 100,155 100,155 C 100,155 85,160 70,140 C 55,110 65,70 100,50 Z" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+                                    <path d="M 100,180 L 100,200" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="flex gap-4 mt-2 text-xs font-semibold">
+                                <span class="flex items-center gap-1"><span class="w-3 h-3 bg-[#fffbeb] border border-slate-400 rounded-sm"></span> White (No Chlorophyll)</span>
+                                <span class="flex items-center gap-1"><span class="w-3 h-3 bg-[#22c55e] rounded-sm"></span> Green (With Chlorophyll)</span>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col items-center">
+                            <span class="bg-emerald-600 text-white font-bold text-xs px-3 py-1 rounded-full mb-2">2. Paint Your Iodine Prediction</span>
+                            <div class="w-48 h-48">
+                                <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-md">
+                                    <path id="leaf-outer" d="M 100,20 C 160,50 190,110 160,160 C 130,190 100,180 100,180 C 100,180 70,190 40,160 C 10,110 40,50 100,20 Z" 
+                                          fill="${paintedLeaf.outer}" stroke="#475569" stroke-width="3" class="leaf-part" onclick="paintLeafPart('outer')"/>
+                                    <path id="leaf-inner" d="M 100,50 C 135,70 145,110 130,140 C 115,160 100,155 100,155 C 100,155 85,160 70,140 C 55,110 65,70 100,50 Z" 
+                                          fill="${paintedLeaf.inner}" stroke="#475569" stroke-width="2" stroke-dasharray="4" class="leaf-part" onclick="paintLeafPart('inner')"/>
+                                    <path d="M 100,180 L 100,200" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="text-center text-[10px] text-slate-500 mt-2">Click zones above to fill them.</div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+                        <button onclick="setPaintColor('#78350f', this)" class="color-picker-btn border-4 border-slate-300 bg-[#78350f] text-white font-bold px-4 py-3 rounded-xl shadow-sm hover:scale-105 transition-all text-sm">🖌️ Yellow-Brown (No Starch)</button>
+                        <button onclick="setPaintColor('#1e1b4b', this)" class="color-picker-btn border-4 border-transparent bg-[#1e1b4b] text-white font-bold px-4 py-3 rounded-xl shadow-sm hover:scale-105 transition-all text-sm">🖌️ Blue-Black (Starch Present)</button>
+                    </div>
+
+                    <button onclick="checkLeafPainting()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">Check Chemical Outcome</button>
+                `;
+            }
+
+            card.innerHTML = html;
+        }
+
+        // --- Core Evaluation Engines ---
+
+        function showFeedback(text, isSuccess) {
+            const box = document.getElementById('feedback-box');
+            box.innerHTML = text;
+            box.className = `mb-6 p-4 rounded-xl font-medium text-sm transition-all duration-300 block ${
+                isSuccess ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'
+            }`;
+        }
+
+        function checkMCQ(idx) {
+            const data = quizData[currentStep];
+            if (data.options[idx].correct) {
+                showFeedback(`🎉 <b>Correct!</b> ${data.options[idx].feedback}`, true);
+                document.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+                appendNextButton();
+            } else {
+                showFeedback(`❌ <b>Concept Check:</b> ${data.options[idx].feedback}`, false);
+            }
+        }
+
+        function checkTextInput() {
+            const data = quizData[currentStep];
+            const inputField = document.getElementById('user-text-input');
+            const inputVal = inputField.value.trim().toLowerCase();
+
+            let isCorrect = false;
+
+            if (data.exactMatchOnly) {
+                // Strict validation for single-word parameters to prevent partial prefix tricks
+                isCorrect = data.acceptedAnswers.includes(inputVal);
+            } else {
+                // Phrase validation structure for variables
+                isCorrect = data.acceptedAnswers.some(ans => inputVal.includes(ans) || (ans.includes(inputVal) && inputVal.length > 5));
+            }
+
+            if (isCorrect) {
+                showFeedback(`🎉 <b>Excellent work!</b> Your response matches standard scientific parameters perfectly.`, true);
+                inputField.disabled = true;
+                document.getElementById('submit-text-btn').disabled = true;
+                
+                const guidanceBox = document.getElementById('guidance-box');
+                if (guidanceBox) guidanceBox.classList.add('hidden');
+                const choiceBox = document.getElementById('scaffolded-choices');
+                if (choiceBox) choiceBox.classList.add('hidden');
+                
+                appendNextButton();
+            } else {
+                textInputAttempts++;
+                if (textInputAttempts === 1) {
+                    showFeedback(`❌ <b>Not quite!</b> Check your phrasing or spelling and try again.`, false);
+                    if (data.guidance) {
+                        const guidanceBox = document.getElementById('guidance-box');
+                        guidanceBox.innerHTML = data.guidance;
+                        guidanceBox.classList.remove('hidden');
+                    }
+                } else {
+                    showFeedback(`❌ <b>Still stuck?</b> Select the correct option from the structural panel menu below to finish:`, false);
+                    renderScaffoldedChoices(data.scaffoldChoices);
+                }
+            }
+        }
+
+        function renderScaffoldedChoices(choices) {
+            if (document.getElementById('scaffolded-choices')) return;
+            const container = document.createElement('div');
+            container.id = 'scaffolded-choices';
+            container.className = 'mt-4 p-4 bg-slate-100 border border-slate-200 rounded-xl space-y-2';
+            let choicesHtml = `<p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Options:</p><div class="grid grid-cols-2 gap-2">`;
+            choices.forEach(c => {
+                choicesHtml += `<button onclick="applyScaffoldedChoice('${c}')" class="p-3 bg-white border border-slate-300 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 font-semibold text-sm transition-all shadow-sm">📌 ${c}</button>`;
+            });
+            choicesHtml += `</div>`;
+            container.innerHTML = choicesHtml;
+            document.getElementById('text-input-container').appendChild(container);
+        }
+
+        function applyScaffoldedChoice(chosenValue) {
+            document.getElementById('user-text-input').value = chosenValue;
+            checkTextInput();
+        }
+
+        function evaluateSingleControlVariable() {
+            const data = quizData[currentStep];
+            const inputField = document.getElementById('control-variable-input');
+            const inputVal = inputField.value.trim().toLowerCase();
+
+            if (!inputVal) return;
+
+            let matchedVariable = null;
+            for (let item of data.acceptedPool) {
+                if (item.keywords.some(keyword => inputVal.includes(keyword) && inputVal.length >= 3)) {
+                    matchedVariable = item.standardName;
+                    break;
+                }
+            }
+
+            if (matchedVariable) {
+                if (validControlVariables.includes(matchedVariable)) {
+                    showFeedback(`⚠️ <b>Duplicate input!</b> You have already registered <b>"${matchedVariable}"</b>. Try to name another constant environmental constraint.`, false);
+                } else {
+                    validControlVariables.push(matchedVariable);
+                    inputField.value = ''; 
+                    
+                    const badgeContainer = document.getElementById('control-badge-container');
+                    badgeContainer.innerHTML = validControlVariables.map(v => `<span class="bg-emerald-500 text-white font-semibold text-sm px-3 py-1 rounded-full shadow-sm">✓ ${v}</span>`).join('');
+                    
+                    if (validControlVariables.length >= 3) {
+                        showFeedback(`🎉 <b>Perfect!</b> You have successfully isolated 3 distinct controlled parameters (${validControlVariables.join(', ')}). This ensures a completely fair laboratory framework!`, true);
+                        inputField.disabled = true;
+                        document.getElementById('add-control-btn').disabled = true;
+                        appendNextButton();
+                    } else {
+                        showFeedback(`👍 <b>Valid variable!</b> Added <b>"${matchedVariable}"</b> successfully. Provide ${3 - validControlVariables.length} more constant factor(s).`, true);
+                    }
+                }
+            } else {
+                showFeedback(`❌ <b>Not a core control variable:</b> "${inputField.value}" didn't match. Think about essential conditions for photosynthesis (like light, water, gas parameters, or temperature) that must stay identical for all parts of the leaf!`, false);
+            }
+        }
+
+        function evaluateSinglePrecaution() {
+            const data = quizData[currentStep];
+            const inputField = document.getElementById('precaution-variable-input');
+            const inputVal = inputField.value.trim().toLowerCase();
+
+            if (!inputVal) return;
+
+            let matchedPrecaution = null;
+            for (let item of data.acceptedPool) {
+                if (item.keywords.some(keyword => inputVal.includes(keyword) && inputVal.length >= 3)) {
+                    matchedPrecaution = item.standardName;
+                    break;
+                }
+            }
+
+            if (matchedPrecaution) {
+                if (validPrecautions.includes(matchedPrecaution)) {
+                    showFeedback(`⚠️ <b>Already added!</b> You have already noted this precaution. Think of another safety rule for the lab.`, false);
+                } else {
+                    validPrecautions.push(matchedPrecaution);
+                    inputField.value = '';
+
+                    const badgeContainer = document.getElementById('precautions-badge-container');
+                    badgeContainer.innerHTML = validPrecautions.map(p => `<span class="text-emerald-700 font-semibold text-sm bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg block">🛡️ ${p}</span>`).join('');
+
+                    if (validPrecautions.length >= 2) {
+                        showFeedback(`🎉 <b>Great job!</b> You identified two vital safety precautions. Let's look at a complete list of safety measures for this experiment.`, true);
+                        revealExtraPrecautions();
+                    } else {
+                        showFeedback(`👍 <b>Excellent measure!</b> "<i>${matchedPrecaution}</i>" added. Provide 1 more safety precaution to continue.`, true);
+                    }
+                }
+            } else {
+                showFeedback(`❌ <b>Try rephrasing:</b> We didn't quite catch that. Think about the dangers of heating chemicals, handling boiling water, or what protective gear you should wear!`, false);
+            }
+        }
+
+        function revealExtraPrecautions() {
+            document.getElementById('precaution-variable-input').disabled = true;
+            document.getElementById('add-precaution-btn').disabled = true;
+
+            const extraBox = document.getElementById('extra-precautions-box');
+            extraBox.innerHTML = `
+                <div class="bg-amber-50 border border-amber-300 rounded-xl p-6 text-slate-700 space-y-4">
+                    <h3 class="text-md font-bold text-amber-900 flex items-center gap-2">📋 Master Lab Safety Checklist:</h3>
+                    <p class="text-sm">Excellent work finding two rules. Here is the full safety protocol you must remember when performing this lab:</p>
+                    <ul class="list-disc pl-5 text-sm space-y-2 text-slate-700 font-medium">
+                        <li><b class="text-amber-800">No Open Flames near Alcohol:</b> Ethanol catches fire easily. Turn off your Bunsen burner and use hot water inside a beaker as a heat bath to warm the test tube.</li>
+                        <li><b class="text-amber-800">Eye Protection:</b> Wear safety goggles at all times to avoid boiling liquids or chemical splashes reaching your eyes.</li>
+                        <li><b class="text-amber-800">Thermal Safety:</b> Use test-tube holders or tongs when extracting the leaf from boiling liquids to prevent skin burns.</li>
+                        <li><b class="text-amber-800">Chemical Care:</b> Handle Iodine solution carefully; it stains skin, surfaces, and clothing easily.</li>
+                    </ul>
+                </div>
+            `;
+            extraBox.classList.remove('hidden');
+            appendNextButton();
+        }
+
+        function selectOrderElement(id, element) {
+            if (userOrder.includes(id)) {
+                userOrder = userOrder.filter(x => x !== id);
+                element.querySelector('.order-badge').className = "order-badge bg-slate-100 text-slate-400 font-bold px-3 py-1 rounded-full text-xs";
+                element.querySelector('.order-badge').innerText = "Unselected";
+            } else {
+                userOrder.push(id);
+                element.querySelector('.order-badge').className = "order-badge bg-emerald-500 text-white font-bold px-3 py-1 rounded-full text-xs";
+                element.querySelector('.order-badge').innerText = `Step ${userOrder.length}`;
+            }
+        }
+
+        function checkOrdering() {
+            const data = quizData[currentStep];
+            if (JSON.stringify(userOrder) === JSON.stringify(data.correctOrder)) {
+                showFeedback(`🎉 <b>Perfect Order Sequence!</b> All cell-processing conditions met. ${data.feedback}`, true);
+                appendNextButton();
+            } else {
+                showFeedback(`❌ <b>Sequence Error:</b> Your setup layout breaks critical analytical rules. ${data.feedback} Try re-configuring!`, false);
+                document.querySelectorAll('.order-badge').forEach(b => {
+                    b.className = "order-badge bg-slate-100 text-slate-400 font-bold px-3 py-1 rounded-full text-xs";
+                    b.innerText = "Unselected";
+                });
+                userOrder = [];
+            }
+        }
+
+        function setPaintColor(color, element) {
+            selectedColor = color;
+            document.querySelectorAll('.color-picker-btn').forEach(btn => btn.style.borderColor = 'transparent');
+            element.style.borderColor = '#64748b'; 
+        }
+
+        function paintLeafPart(part) {
+            if (!selectedColor) {
+                alert("Please select an Iodine color tool from the palette options first!");
+                return;
+            }
+            paintedLeaf[part] = selectedColor;
+            document.getElementById(`leaf-${part}`).style.fill = selectedColor;
+        }
+
+        function checkLeafPainting() {
+            if (paintedLeaf.inner === '#1e1b4b' && paintedLeaf.outer === '#78350f') {
+                showFeedback("🎉 <b>Incredible Prediction!</b> The chlorophyll-containing inner zone turned blue-black, confirming starch generation. The non-green borders stayed iodine-brown because no photosynthesis occurred. This definitively proves chlorophyll is vital!", true);
+                appendNextButton();
+            } else {
+                showFeedback("❌ <b>Mismatched Reaction:</b> Your colored leaf does not match how the pigments react. Keep in mind: No chlorophyll = No photosynthesis = No starch. Look closely at the 'Before' diagram, re-evaluate which zones will produce starch, and adjust your brush colors!", false);
+            }
+        }
+
+        function appendNextButton() {
+            if (document.getElementById('next-btn-container')) return; 
+            const card = document.getElementById('app-card');
+            const div = document.createElement('div');
+            div.id = 'next-btn-container';
+            div.className = 'mt-6 pt-4 border-t border-slate-100 flex justify-end';
+            const isLastStep = currentStep === quizData.length - 1;
+            div.innerHTML = `
+                <button onclick="nextStep()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-md">
+                    ${isLastStep ? 'Complete Laboratory Evaluation ✨' : 'Proceed to Next Step ➔'}
+                </button>
+            `;
+            card.appendChild(div);
+        }
+
+        function nextStep() {
+            if (currentStep < quizData.length - 1) {
+                currentStep++;
+                textInputAttempts = 0; 
+                validControlVariables = []; 
+                renderStep();
+            } else {
+                showVictoryScreen();
+            }
+        }
+
+        function showVictoryScreen() {
+            document.getElementById('progress-text').innerText = "Lab Prep Completed";
+            document.getElementById('progress-bar').style.width = "100%";
+            const card = document.getElementById('app-card');
+            card.innerHTML = `
+                <div class="text-center py-6"><span class="text-6xl">🔬</span></div>
+                <h2 class="text-3xl font-extrabold text-center text-slate-800 mb-4">Lab Clearance Granted!</h2>
+                <p class="text-slate-600 text-center mb-8 max-w-md mx-auto">
+                    You have masterfully deduced the operational elements, variable structures, text terminology, chemical pathways, safety rules, and logical checkpoints for the <b>Chlorophyll Fair Test Investigation</b>.
+                </p>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-800 font-medium text-sm text-center">
+                    Show this completed tracking screen to your teacher to claim your physical lab materials workspace set!
+                </div>
+                <button onclick="location.reload()" class="w-full mt-6 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-6 rounded-xl transition-all">
+                    🔄 Restart Simulation Worktable
+                </button>
+            `;
+        }
+
+        renderStep();
+    </script>
+</body>
+</html>
