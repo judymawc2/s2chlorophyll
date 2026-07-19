@@ -28,7 +28,17 @@
 
     <!-- Main Content Area -->
     <main class="max-w-4xl w-full mx-auto p-6 flex-grow flex flex-col justify-center">
-        <div id="app-card" class="bg-white rounded-2xl shadow-xl p-8 transition-all duration-300">
+        <!-- Student Identity Prompt (First Step) -->
+        <div id="student-name-box" class="bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <h2 class="text-xl font-bold text-slate-800 mb-2">👋 Welcome to Lab Prep!</h2>
+            <p class="text-sm text-slate-500 mb-4">Please enter your name before beginning so it can be attached to your lab clearance report.</p>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input type="text" id="student-name-input" placeholder="Enter your full name..." class="flex-grow p-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-emerald-500 font-medium">
+                <button onclick="startWizard()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-md transition-all">Start Wizard</button>
+            </div>
+        </div>
+
+        <div id="app-card" class="bg-white rounded-2xl shadow-xl p-8 transition-all duration-300 hidden">
             <!-- Content will be dynamically inserted here by JavaScript -->
         </div>
     </main>
@@ -40,17 +50,34 @@
 
     <script>
         // Global App State
+        let studentName = "Anonymous Student";
         let currentStep = 0;
         let selectedColor = null; 
         let paintedLeaf = { outer: '#e2e8f0', inner: '#e2e8f0' }; 
         let userOrder = [];
         let textInputAttempts = 0; 
+        let mcqAttempts = 0;
         let validControlVariables = []; 
         let validPrecautions = []; 
+
+        // Analytics Tracker Object to hold student metrics
+        let studentReport = {
+            mcq1FirstTry: true,
+            mcq2FirstTry: true,
+            variegatedLeafInput: "",
+            starchInput: "",
+            independentVariable: "",
+            dependentVariable: "",
+            controlledVariables: [],
+            orderingAttempts: 1,
+            leafPaintingAttempts: 1,
+            safetyPrecautions: []
+        };
 
         const quizData = [
             {
                 type: "mcq",
+                id: "mcq1",
                 question: "How do we test for the presence of starch in a leaf?",
                 options: [
                     { text: "Add Benedict's solution; it turns from blue to brick-red.", correct: false, feedback: "Incorrect. Benedict's solution is used to test for reducing sugars like glucose, not starch!" },
@@ -74,7 +101,8 @@
                 placeholder: "Type the two-word phrase here...",
                 exactMatchOnly: true,
                 acceptedAnswers: ["variegated leaf", "variegated leaves"],
-                scaffoldChoices: ["Green leaf", "Variegated leaf", "Bleached leaf", "Compound leaf"]
+                scaffoldChoices: ["Green leaf", "Variegated leaf", "Bleached leaf", "Compound leaf"],
+                onSuccess: (val) => { studentReport.variegatedLeafInput = val; }
             },
             {
                 type: "text-input",
@@ -82,7 +110,8 @@
                 placeholder: "Type your answer here...",
                 exactMatchOnly: true,
                 acceptedAnswers: ["starch"],
-                scaffoldChoices: ["Glucose", "Starch", "Protein", "Cellulose"]
+                scaffoldChoices: ["Glucose", "Starch", "Protein", "Cellulose"],
+                onSuccess: (val) => { studentReport.starchInput = val; }
             },
             {
                 type: "text-input",
@@ -95,10 +124,10 @@
                     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-slate-700 text-sm space-y-2 mt-2">
                         <p class="font-bold text-amber-800">💡 Let's review Independent Variables:</p>
                         <p>The <b>Independent Variable</b> is the thing <u>YOU change</u> or make different on purpose. Think of it as the <i>cause</i>.</p>
-                        <p>🛒 <b>Example:</b> If you test how different amounts of sugar affect how sweet a drink is, the <i>amount of sugar</i> is the independent variable because you decide to change it.</p>
                         <p>👉 <i>In this experiment, what is naturally different between the inner zone and the outer edge of our variegated leaf?</i></p>
                     </div>
-                `
+                `,
+                onSuccess: (val) => { studentReport.independentVariable = val; }
             },
             {
                 type: "text-input",
@@ -110,11 +139,11 @@
                 guidance: `
                     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-slate-700 text-sm space-y-2 mt-2">
                         <p class="font-bold text-amber-800">💡 Let's review Dependent Variables:</p>
-                        <p>The <b>Dependent Variable</b> is the thing you <u>measure or observe</u> to get your results. It *depends* on the changes you made. Think of it as the <i>effect</i>.</p>
-                        <p>🛒 <b>Example:</b> In the sweet drink test, how <i>sweet the drink tastes</i> is your result. That outcome is your dependent variable.</p>
+                        <p>The <b>Dependent Variable</b> is the thing you <u>measure or observe</u> to get your results. It *depends* on the changes you made.</p>
                         <p>👉 <i>In this experiment, what substance are we checking for at the end using the iodine solution to see if photosynthesis worked?</i></p>
                     </div>
-                `
+                `,
+                onSuccess: (val) => { studentReport.dependentVariable = val; }
             },
             {
                 type: "control-variables-tracker",
@@ -130,6 +159,7 @@
             },
             {
                 type: "mcq",
+                id: "mcq2",
                 question: "Before starting the investigation, what must we do to the plant to guarantee a fair test?",
                 options: [
                     { text: "Water it excessively and leave it in the bright sun for 48 hours.", correct: false, feedback: "If it sits in the sun, it will create *more* starch, which defeats the purpose of starting fresh!" },
@@ -166,6 +196,18 @@
             }
         ];
 
+        function startWizard() {
+            const input = document.getElementById('student-name-input').value.trim();
+            if(input) {
+                studentName = input;
+                document.getElementById('student-name-box').classList.add('hidden');
+                document.getElementById('app-card').classList.remove('hidden');
+                renderStep();
+            } else {
+                alert("Please type your name before starting!");
+            }
+        }
+
         function renderStep() {
             const card = document.getElementById('app-card');
             const data = quizData[currentStep];
@@ -188,6 +230,7 @@
             }
 
             else if (data.type === 'mcq') {
+                mcqAttempts = 0; 
                 html += `<div class="space-y-4">`;
                 data.options.forEach((opt, idx) => {
                     html += `
@@ -339,8 +382,15 @@
             if (data.options[idx].correct) {
                 showFeedback(`🎉 <b>Correct!</b> ${data.options[idx].feedback}`, true);
                 document.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+                
+                // If it took more than 0 failures before finding correct answer, set first try tracking to false
+                if (mcqAttempts > 0) {
+                    if (data.id === "mcq1") studentReport.mcq1FirstTry = false;
+                    if (data.id === "mcq2") studentReport.mcq2FirstTry = false;
+                }
                 appendNextButton();
             } else {
+                mcqAttempts++;
                 showFeedback(`❌ <b>Concept Check:</b> ${data.options[idx].feedback}`, false);
             }
         }
@@ -351,12 +401,9 @@
             const inputVal = inputField.value.trim().toLowerCase();
 
             let isCorrect = false;
-
             if (data.exactMatchOnly) {
-                // Strict validation for single-word parameters to prevent partial prefix tricks
                 isCorrect = data.acceptedAnswers.includes(inputVal);
             } else {
-                // Phrase validation structure for variables
                 isCorrect = data.acceptedAnswers.some(ans => inputVal.includes(ans) || (ans.includes(inputVal) && inputVal.length > 5));
             }
 
@@ -365,6 +412,8 @@
                 inputField.disabled = true;
                 document.getElementById('submit-text-btn').disabled = true;
                 
+                if (data.onSuccess) data.onSuccess(inputField.value.trim());
+
                 const guidanceBox = document.getElementById('guidance-box');
                 if (guidanceBox) guidanceBox.classList.add('hidden');
                 const choiceBox = document.getElementById('scaffolded-choices');
@@ -426,6 +475,7 @@
                     showFeedback(`⚠️ <b>Duplicate input!</b> You have already registered <b>"${matchedVariable}"</b>. Try to name another constant environmental constraint.`, false);
                 } else {
                     validControlVariables.push(matchedVariable);
+                    studentReport.controlledVariables.push(inputField.value.trim());
                     inputField.value = ''; 
                     
                     const badgeContainer = document.getElementById('control-badge-container');
@@ -465,6 +515,7 @@
                     showFeedback(`⚠️ <b>Already added!</b> You have already noted this precaution. Think of another safety rule for the lab.`, false);
                 } else {
                     validPrecautions.push(matchedPrecaution);
+                    studentReport.safetyPrecautions.push(inputField.value.trim());
                     inputField.value = '';
 
                     const badgeContainer = document.getElementById('precautions-badge-container');
@@ -521,6 +572,7 @@
                 showFeedback(`🎉 <b>Perfect Order Sequence!</b> All cell-processing conditions met. ${data.feedback}`, true);
                 appendNextButton();
             } else {
+                studentReport.orderingAttempts++;
                 showFeedback(`❌ <b>Sequence Error:</b> Your setup layout breaks critical analytical rules. ${data.feedback} Try re-configuring!`, false);
                 document.querySelectorAll('.order-badge').forEach(b => {
                     b.className = "order-badge bg-slate-100 text-slate-400 font-bold px-3 py-1 rounded-full text-xs";
@@ -547,10 +599,11 @@
 
         function checkLeafPainting() {
             if (paintedLeaf.inner === '#1e1b4b' && paintedLeaf.outer === '#78350f') {
-                showFeedback("🎉 <b>Incredible Prediction!</b> The chlorophyll-containing inner zone turned blue-black, confirming starch generation. The non-green borders stayed iodine-brown because no photosynthesis occurred. This definitively proves chlorophyll is vital!", true);
+                showFeedback("🎉 <b>Incredible Prediction!</b> The chlorophyll-containing inner zone turned blue-black, confirming starch generation. The non-green borders stayed iodine-brown because no photosynthesis occurred.", true);
                 appendNextButton();
             } else {
-                showFeedback("❌ <b>Mismatched Reaction:</b> Your colored leaf does not match how the pigments react. Keep in mind: No chlorophyll = No photosynthesis = No starch. Look closely at the 'Before' diagram, re-evaluate which zones will produce starch, and adjust your brush colors!", false);
+                studentReport.leafPaintingAttempts++;
+                showFeedback("❌ <b>Mismatched Reaction:</b> Your colored leaf does not match how the pigments react. Keep in mind: No chlorophyll = No photosynthesis = No starch.", false);
             }
         }
 
@@ -580,26 +633,73 @@
             }
         }
 
+        // Compilation function to construct clipboard data text format
+        function generateRawTextSummary() {
+            return `========================================
+📊 S2 SCIENCE PHOTOSYNTHESIS LAB PREP REPORT
+========================================
+Student Name: ${studentName}
+Timestamp: ${new Date().toLocaleString()}
+
+[CONCEPT CHALLENGES]
+• Q1 (Starch Test Chemical Link): ${studentReport.mcq1FirstTry ? "PASSED ON 1ST ATTEMPT ✅" : "REQUIRED MULTIPLE ATTEMPTS ⚠️"}
+• Q8 (Destarching Fair Parameter): ${studentReport.mcq2FirstTry ? "PASSED ON 1ST ATTEMPT ✅" : "REQUIRED MULTIPLE ATTEMPTS ⚠️"}
+• Q9 (Lab Step Order Sequence): Cleared in ${studentReport.orderingAttempts} attempt(s)
+• Q10 (Iodine Leaf Paint Mapping): Cleared in ${studentReport.leafPaintingAttempts} attempt(s)
+
+[VOCABULARY & VARIABLE DEFINITIONS]
+• Dual Pigment Leaf Type: "${studentReport.variegatedLeafInput}"
+• Long-term Storage Sugar: "${studentReport.starchInput}"
+• Independent Variable (Cause): "${studentReport.independentVariable}"
+• Dependent Variable (Effect): "${studentReport.dependentVariable}"
+
+[STUDENT TYPED VARIABLES (3 CONSTANTS)]
+${studentReport.controlledVariables.map((v, i) => `  ${i+1}. ${v}`).join("\n")}
+
+[STUDENT TYPED SAFETY PRECAUTIONS]
+${studentReport.safetyPrecautions.map((p, i) => `  ${i+1}. ${p}`).join("\n")}
+========================================`;
+        }
+
+        function copySummaryToClipboard() {
+            const reportText = generateRawTextSummary();
+            navigator.clipboard.writeText(reportText).then(() => {
+                const btn = document.getElementById('copy-report-btn');
+                btn.innerHTML = "✓ Report Copied Successfully!";
+                btn.className = "w-full bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md";
+                alert("Lab summary copied to your clipboard! Paste (Ctrl+V) it into your submission portal.");
+            }).catch(err => {
+                alert("Failed to copy automatically. Please take a manual screenshot of the summary.");
+            });
+        }
+
         function showVictoryScreen() {
             document.getElementById('progress-text').innerText = "Lab Prep Completed";
             document.getElementById('progress-bar').style.width = "100%";
             const card = document.getElementById('app-card');
+            
             card.innerHTML = `
-                <div class="text-center py-6"><span class="text-6xl">🔬</span></div>
-                <h2 class="text-3xl font-extrabold text-center text-slate-800 mb-4">Lab Clearance Granted!</h2>
-                <p class="text-slate-600 text-center mb-8 max-w-md mx-auto">
-                    You have masterfully deduced the operational elements, variable structures, text terminology, chemical pathways, safety rules, and logical checkpoints for the <b>Chlorophyll Fair Test Investigation</b>.
+                <div class="text-center py-4"><span class="text-6xl">🔬</span></div>
+                <h2 class="text-3xl font-extrabold text-center text-slate-800 mb-2">Lab Clearance Granted!</h2>
+                <p class="text-slate-500 text-center mb-6 max-w-md mx-auto text-sm">
+                    Hey ${studentName}, you have masterfully configured the experimental design for the <b>Chlorophyll Fair Test Investigation</b>.
                 </p>
-                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-800 font-medium text-sm text-center">
-                    Show this completed tracking screen to your teacher to claim your physical lab materials workspace set!
+                
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 text-left">
+                    <span class="text-xs font-bold text-slate-400 block uppercase tracking-wider mb-2">Generated Report Preview:</span>
+                    <pre class="text-xs text-slate-600 overflow-x-auto whitespace-pre-wrap font-mono max-h-48 overflow-y-auto bg-white p-3 border border-slate-200 rounded-lg">${generateRawTextSummary()}</pre>
                 </div>
-                <button onclick="location.reload()" class="w-full mt-6 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-6 rounded-xl transition-all">
-                    🔄 Restart Simulation Worktable
-                </button>
+
+                <div class="space-y-3">
+                    <button id="copy-report-btn" onclick="copySummaryToClipboard()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-md text-md flex items-center justify-center gap-2">
+                        📋 Copy Summary to Clipboard
+                    </button>
+                    <button onclick="location.reload()" class="w-full text-xs text-slate-400 hover:text-slate-600 font-semibold py-2 transition-all">
+                        🔄 Restart Simulation Worktable
+                    </button>
+                </div>
             `;
         }
-
-        renderStep();
     </script>
 </body>
 </html>
